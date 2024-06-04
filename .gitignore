@@ -3,6 +3,7 @@ package-lock.json
 /tmp
 
 sources/*
+!sources/template.csv
 
 node_modules
 

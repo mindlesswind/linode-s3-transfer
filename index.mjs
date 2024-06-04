@@ -5,8 +5,9 @@ import { mkdir } from 'fs/promises'
 import { Readable } from 'stream'
 import 'dotenv/config'
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { fetch, Agent } from 'undici';
 
-const csvFile = process.env.CSV_FILE_PATH 
+const csvFile = process.env.CSV_FILE_PATH
 const linodeBucketUrl = process.env.LINODE_BUCKET_URL
 
 try {
@@ -29,7 +30,11 @@ try {
     fs.createReadStream(csvFile)
         .pipe(csv())
         .on('data', async (data) => {
-            const res = await fetch(path.join(linodeBucketUrl, data.name));
+            const res = await fetch(path.join(linodeBucketUrl, data.name), {
+                dispatcher: new Agent({
+                    bodyTimeout: 10 * 60e3, // 10 minutes
+                })
+            })
             if (!fs.existsSync("tmp")) await mkdir("tmp");
             const destination = path.resolve("./tmp", data.name);
             const fileStream = fs.createWriteStream(destination, { flags: 'wx' });
