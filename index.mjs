@@ -94,5 +94,5 @@ try {
 
 function logging(date, string) {
     console.log(`${string}`);
-    fs.appendFileSync(path.resolve("./logs", `${date.toISOString()}.log`), `${string}`)
+    fs.appendFileSync(path.resolve("./logs", `${date.toISOString()}.log`), `${string}\n`)
 }
