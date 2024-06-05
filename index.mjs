@@ -6,7 +6,8 @@ import { Readable } from 'stream'
 import 'dotenv/config'
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { fetch, Agent } from 'undici';
-import { log } from 'console'
+import mime from 'mime';
+
 
 const csvFile = process.env.CSV_FILE_PATH
 const linodeBucketUrl = process.env.LINODE_BUCKET_URL
@@ -72,6 +73,7 @@ try {
                     Bucket: process.env.S3_BUCKET_NAME,
                     Key: key,
                     Body: fs.createReadStream(destination),
+                    ContentType: mime.getType(destination)
                 })
                 try {
                     const uploadResult = await s3Client.send(uploadCommand)
