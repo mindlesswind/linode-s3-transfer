@@ -51,7 +51,7 @@ try {
 
                 let processList = []
 
-                for (let i = 0; i < process.env.UPLOAD_THREADS; i++) {
+                for (let i = 0; i < process.env.UPLOAD_THREADS ?? 10; i++) {
                     if (uniqueFileNames.length > 0) {
                         processList.push(transferFile(uniqueFileNames.shift(), date))
                     } else {
