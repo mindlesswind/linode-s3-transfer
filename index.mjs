@@ -46,22 +46,18 @@ try {
         .on('end', async () => {
 
             logging(`Read Ending Time: ${new Date().toISOString()}`)
-            
-            fileRecords = fileRecords.map(([id, name]) => [id, name.trim()])
-
-            const uniqueNameRecords = Array.from(new Map(fileRecords.map(([id, name]) => [name, id])));
 
             logging(`Start Transfer Time: ${new Date().toISOString()}`)
             logging(`${"=".repeat(50)}\n`)
 
-            while (uniqueNameRecords.length > 0) {
+            while (fileRecords.length > 0) {
 
                 let processList = []
 
                 for (let i = 0; i < (process.env.UPLOAD_THREADS ?? 10); i++) {
-                    if (uniqueNameRecords.length > 0) {
-                        const record = uniqueNameRecords.shift()
-                        processList.push(transferFile(record[1], record[0], date))
+                    if (fileRecords.length > 0) {
+                        const record = fileRecords.shift()
+                        processList.push(transferFile(record[0], record[1], date))
                     } else {
                         break
                     }
@@ -110,7 +106,7 @@ async function transferFile(id, key) {
 
         } catch (err) {
             if (err.code === 'EEXIST') {
-                logging(`File ${key} exists in parallel download, skip this time`)
+                return { success: false , key: key, id: id, reason: `Parallel Download Error: ${err.message}`};
             } else {
                 return { success: false , key: key, id: id, reason: `Write File Error: ${err.message}`};
             }
