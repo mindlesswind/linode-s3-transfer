@@ -35,7 +35,13 @@ try {
     fs.createReadStream(csvFile)
         .pipe(csv())
         .on('data', (data) => {
-            fileNames.push(data.name)
+            try {
+                if (data['format'].toLowerCase() === 's3'){
+                    fileNames.push(data.name)    
+                }
+            } catch{
+                logging(`Skip ${data.name}, due to missing format field`)
+            }
         })
         .on('end', async () => {
 
