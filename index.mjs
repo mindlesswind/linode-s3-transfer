@@ -12,7 +12,7 @@ import mime from 'mime';
 const csvFile = process.env.CSV_FILE_PATH
 const linodeBucketUrl = process.env.LINODE_BUCKET_URL
 
-let fileNames = []
+let fileRecords = []
 
 const date = new Date();
 
@@ -37,29 +37,31 @@ try {
         .on('data', (data) => {
             try {
                 if (data['format'].toLowerCase() === 's3'){
-                    fileNames.push(data.name)    
+                    fileRecords.push([data.id, data.name])    
                 }
             } catch{
-                logging(`Skip ${data.name}, due to missing format field`)
+                logging(`Skip ${data.id} ${data.name}, due to missing field`)
             }
         })
         .on('end', async () => {
 
             logging(`Read Ending Time: ${new Date().toISOString()}`)
+            
+            fileRecords = fileRecords.map(([id, name]) => [id, name.trim()])
 
-            const uniqueFileNamesSet = [...new Set(fileNames)]
-            let uniqueFileNames = Array.from(uniqueFileNamesSet)
+            const uniqueNameRecords = Array.from(new Map(fileRecords.map(([id, name]) => [name, id])));
 
             logging(`Start Transfer Time: ${new Date().toISOString()}`)
             logging(`${"=".repeat(50)}\n`)
 
-            while (uniqueFileNames.length > 0) {
+            while (uniqueNameRecords.length > 0) {
 
                 let processList = []
 
                 for (let i = 0; i < (process.env.UPLOAD_THREADS ?? 10); i++) {
-                    if (uniqueFileNames.length > 0) {
-                        processList.push(transferFile(uniqueFileNames.shift(), date))
+                    if (uniqueNameRecords.length > 0) {
+                        const record = uniqueNameRecords.shift()
+                        processList.push(transferFile(record[1], record[0], date))
                     } else {
                         break
                     }
@@ -69,9 +71,9 @@ try {
 
                 results.forEach(result => {
                     if (result.success) {
-                        logging(`File ${result.key} uploaded successfully`)
+                        logging(`ID ${result.id} | File ${result.key} OK`)
                     } else {
-                        logging(`File ${result.key} failed to upload`)
+                        logging(`ID ${result.id} | File ${result.key} | ${result.reason}`)
                     }
                 })
             }
@@ -83,13 +85,17 @@ try {
     console.error(err)
 }
 
-async function transferFile(key) {
+async function transferFile(id, key) {
     try {
         const res = await fetch(path.join(linodeBucketUrl, key), {
             dispatcher: new Agent({
                 bodyTimeout: 10 * 60e3, // 10 minutes
             })
         })
+
+        if (res.status !== 200) {
+            return { success: false , key: key, id: id, reason: `Failed to download from Linode Bucket`};
+        }
 
         if (!fs.existsSync("tmp")) await mkdir("tmp");
 
@@ -100,13 +106,13 @@ async function transferFile(key) {
 
             const pipe = Readable.fromWeb(res.body).pipe(fileStream)
 
-            const downloadResult = await new Promise((resolve, reject) => { pipe.on("finish", resolve); pipe.on("error", reject) });
+            await new Promise((resolve, reject) => { pipe.on("finish", resolve); pipe.on("error", reject) });
 
         } catch (err) {
             if (err.code === 'EEXIST') {
                 logging(`File ${key} exists in parallel download, skip this time`)
             } else {
-                throw err
+                return { success: false , key: key, id: id, reason: `Write File Error: ${err.message}`};
             }
         }
 
@@ -122,14 +128,13 @@ async function transferFile(key) {
             fs.unlinkSync(destination)
         } catch (err) {
             fs.unlinkSync(destination)
-            throw err
+            return { success: false , key: key, id: id, reason: `Upload Error: ${err.message}`};
         }
 
-        return { success: true , key: key};
+        return { success: true , key: key, id: id};
 
-    } catch (error) {
-        logging(`Error: ${error.message}`)
-        return { success: false , key: key};
+    } catch (err) {
+        return { success: false , key: key, id: id, reason: `Error: ${err.message}`};
     }
 }
 
